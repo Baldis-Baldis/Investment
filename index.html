@@ -314,16 +314,16 @@
     <div class="card-title">Vstupní parametry</div>
 
     <div class="field">
-      <div class="field-label">Vstupní investice <strong id="p1-inv-out">500 000 Kč</strong></div>
-      <input type="range" id="p1-inv" min="50000" max="5000000" step="10000" value="500000" oninput="p1update()">
+      <div class="field-label">Vstupní investice</div>
+      <input type="number" id="p1-inv" value="500000" min="0" step="10000" oninput="p1update()" placeholder="např. 500000">
     </div>
     <div class="field">
-      <div class="field-label">Měsíční příjem <strong id="p1-monthly-out">3 000 Kč</strong></div>
-      <input type="range" id="p1-monthly" min="500" max="50000" step="500" value="3000" oninput="p1update()">
+      <div class="field-label">Měsíční příjem (Kč)</div>
+      <input type="number" id="p1-monthly" value="3000" min="0" step="500" oninput="p1update()" placeholder="např. 3000">
     </div>
     <div class="field">
-      <div class="field-label">Roční náklady <strong id="p1-costs-out">12 000 Kč</strong></div>
-      <input type="range" id="p1-costs" min="0" max="100000" step="1000" value="12000" oninput="p1update()">
+      <div class="field-label">Roční náklady (Kč)</div>
+      <input type="number" id="p1-costs" value="12000" min="0" step="1000" oninput="p1update()" placeholder="např. 12000">
     </div>
     <div class="field">
       <div class="field-label">Horizont <strong id="p1-years-out">10 let</strong></div>
@@ -331,7 +331,7 @@
     </div>
     <div class="field">
       <div class="field-label">S&P 500 výnos p.a. <strong id="p1-sp-out">10,0 %</strong></div>
-      <input type="range" id="p1-sp" min="3" max="15" step="0.5" value="10" oninput="p1update()">
+      <input type="range" id="p1-sp" min="1" max="20" step="0.5" value="10" oninput="p1update()">
     </div>
   </div>
 
@@ -398,12 +398,12 @@
   <div class="card">
     <div class="card-title">Parametry</div>
     <div class="field">
-      <div class="field-label">Měsíční vklad <strong id="p3-m-out">5 000 Kč</strong></div>
-      <input type="range" id="p3-m" min="500" max="30000" step="500" value="5000" oninput="p3update()">
+      <div class="field-label">Měsíční vklad (Kč)</div>
+      <input type="number" id="p3-m" value="5000" min="0" step="500" oninput="p3update()" placeholder="např. 5000">
     </div>
     <div class="field">
-      <div class="field-label">Počáteční vklad <strong id="p3-i-out">0 Kč</strong></div>
-      <input type="range" id="p3-i" min="0" max="1000000" step="10000" value="0" oninput="p3update()">
+      <div class="field-label">Počáteční vklad (Kč)</div>
+      <input type="number" id="p3-i" value="0" min="0" step="10000" oninput="p3update()" placeholder="0">
     </div>
     <div class="field">
       <div class="field-label">Horizont <strong id="p3-y-out">10 let</strong></div>
@@ -411,7 +411,7 @@
     </div>
     <div class="field">
       <div class="field-label">Výnos S&P 500 <strong id="p3-r-out">10,0 %</strong></div>
-      <input type="range" id="p3-r" min="3" max="15" step="0.5" value="10" oninput="p3update()">
+      <input type="range" id="p3-r" min="1" max="20" step="0.5" value="10" oninput="p3update()">
     </div>
   </div>
 
@@ -476,9 +476,6 @@ function p1update() {
   const years   = +document.getElementById('p1-years').value;
   const sp      = +document.getElementById('p1-sp').value;
 
-  document.getElementById('p1-inv-out').textContent     = inv.toLocaleString('cs-CZ') + ' Kč';
-  document.getElementById('p1-monthly-out').textContent = monthly.toLocaleString('cs-CZ') + ' Kč';
-  document.getElementById('p1-costs-out').textContent   = costs.toLocaleString('cs-CZ') + ' Kč';
   document.getElementById('p1-years-out').textContent   = years + ' let';
   document.getElementById('p1-sp-out').textContent      = sp.toFixed(1).replace('.', ',') + ' %';
 
@@ -657,8 +654,6 @@ function p3update() {
   const years   = +document.getElementById('p3-y').value;
   const rate    = +document.getElementById('p3-r').value;
 
-  document.getElementById('p3-m-out').textContent = monthly.toLocaleString('cs-CZ') + ' Kč';
-  document.getElementById('p3-i-out').textContent = initial.toLocaleString('cs-CZ') + ' Kč';
   document.getElementById('p3-y-out').textContent = years + ' let';
   document.getElementById('p3-r-out').textContent = rate.toFixed(1).replace('.', ',') + ' %';
   document.getElementById('p3-yspan').textContent = years + ' l.';
