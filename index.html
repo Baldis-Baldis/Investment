@@ -299,7 +299,7 @@
 
 <div class="nav">
   <div class="nav-title">Investiční kalkulačka</div>
-  <div class="nav-sub">Pronájem · S&P 500 · DCA simulace</div>
+  <div class="nav-sub">Pronájem · S&P 500 · DCA simulace · <span style="font-size:10px;opacity:0.6">© RB</span></div>
   <div class="tabs">
     <button class="tab active" onclick="showPage('p1',this)">🏠 Návratnost</button>
     <button class="tab" onclick="showPage('p2',this)">📊 S&P 500</button>
@@ -358,6 +358,29 @@
 <div id="p2" class="page">
 
   <div class="card">
+    <div class="card-title">Moje investice</div>
+    <div class="field">
+      <div class="field-label">Počáteční investice (Kč)</div>
+      <input type="number" id="p2-start" value="100000" min="0" step="10000" oninput="p2update()" placeholder="např. 100000">
+    </div>
+    <div class="field">
+      <div class="field-label">Datum vložení</div>
+      <select id="p2-from" onchange="p2update()" style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-size:16px;font-family:var(--font);padding:10px 12px;outline:none;-webkit-appearance:none;appearance:none">
+        <option value="2015">Začátek 2015</option>
+        <option value="2016">Začátek 2016</option>
+        <option value="2017">Začátek 2017</option>
+        <option value="2018">Začátek 2018</option>
+        <option value="2019">Začátek 2019</option>
+        <option value="2020">Začátek 2020</option>
+        <option value="2021">Začátek 2021</option>
+        <option value="2022">Začátek 2022</option>
+        <option value="2023">Začátek 2023</option>
+        <option value="2024">Začátek 2024</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="card">
     <div class="card-title">Poplatky XTB</div>
     <div class="ytable">
       <div class="ytrow"><span class="ytrow-label">Nákup ETF</span><span class="ytrow-val">Zdarma <span style="font-weight:400;color:var(--text2);font-size:11px">do 100k EUR/měs</span></span></div>
@@ -369,23 +392,23 @@
   <div id="p2-metrics" class="metrics"></div>
 
   <div class="card">
-    <div class="card-title">Roční výnosy 2015–2024</div>
+    <div class="card-title" id="p2-table-title">Roční výnosy 2015–2024</div>
     <div style="overflow-x:auto">
-      <table class="tbl" id="p2-table">
+      <table class="tbl">
         <thead><tr>
           <th>Rok</th>
           <th>Hrubý</th>
           <th>Po TER</th>
-          <th>Po prodeji</th>
+          <th>Hodnota</th>
         </tr></thead>
         <tbody id="p2-tbody"></tbody>
       </table>
     </div>
-    <p style="font-size:10px;color:var(--text2);margin-top:10px">* Po prodeji = po odečtení 1% konverze (jednorázově při výstupu)</p>
+    <p style="font-size:10px;color:var(--text2);margin-top:10px">* Hodnota = tvoje investice po každém roce, po odečtení TER 0,07 %</p>
   </div>
 
   <div class="card">
-    <div class="card-title">Růst 100 000 Kč (2015–2024)</div>
+    <div class="card-title" id="p2-chart-title">Růst investice v čase</div>
     <div id="p2-legend" class="legend"></div>
     <div class="chart-wrap"><canvas id="p2-chart"></canvas></div>
   </div>
@@ -562,16 +585,24 @@ const sp500data = [
 ];
 const TER = 0.07;
 
-function p2init() {
+function p2update() {
+  const start   = +document.getElementById('p2-start').value || 100000;
+  const fromYear = +document.getElementById('p2-from').value;
+
+  const filtered = sp500data.filter(d => d.year >= fromYear);
+  const years = filtered.length;
+
+  document.getElementById('p2-table-title').textContent  = `Roční výnosy ${fromYear}–2024`;
+  document.getElementById('p2-chart-title').textContent  = `Růst ${start.toLocaleString('cs-CZ')} Kč (${fromYear}–2024)`;
+
   let totalG = 1, totalN = 1;
   const tbody = document.getElementById('p2-tbody');
   tbody.innerHTML = '';
   const grossLine = [], netLine = [];
-  let gv = 100000, nv = 100000;
+  let gv = start, nv = start;
 
-  sp500data.forEach(d => {
+  filtered.forEach(d => {
     const net = d.gross - TER;
-    const afterSale = net - 1;
     totalG *= (1 + d.gross / 100);
     totalN *= (1 + net / 100);
     gv *= (1 + d.gross / 100);
@@ -584,30 +615,30 @@ function p2init() {
       <td>${d.year}</td>
       <td><span class="badge ${d.gross>=0?'g':'r'}">${d.gross>=0?'+':''}${d.gross.toFixed(2)}%</span></td>
       <td style="color:var(--green)">${net>=0?'+':''}${net.toFixed(2)}%</td>
-      <td style="color:var(--text2)">${afterSale>=0?'+':''}${afterSale.toFixed(2)}%</td>
+      <td style="color:var(--green);font-weight:600">${fmt(Math.round(nv))}</td>
     `;
     tbody.appendChild(tr);
   });
 
-  const avgG = (Math.pow(totalG, 1/10) - 1) * 100;
-  const avgN = (Math.pow(totalN, 1/10) - 1) * 100;
+  const avgG = years > 0 ? (Math.pow(totalG, 1/years) - 1) * 100 : 0;
+  const avgN = years > 0 ? (Math.pow(totalN, 1/years) - 1) * 100 : 0;
   const tr = document.createElement('tr');
-  tr.innerHTML = `<td>Průměr</td><td style="color:var(--green)">+${avgG.toFixed(2)}%</td><td style="color:var(--green)">+${avgN.toFixed(2)}%</td><td style="color:var(--text2)">jednor.</td>`;
+  tr.innerHTML = `<td>Průměr p.a.</td><td style="color:var(--green)">+${avgG.toFixed(2)}%</td><td style="color:var(--green)">+${avgN.toFixed(2)}%</td><td style="color:var(--text2)">—</td>`;
   tbody.appendChild(tr);
 
-  const start = 100000;
   const finalG = Math.round(start * totalG);
   const finalN = Math.round(start * totalN);
   const finalS = Math.round(start * totalN * 0.99);
+  const gain   = finalN - start;
 
   document.getElementById('p2-metrics').innerHTML = `
-    <div class="metric"><div class="metric-label">100k → hrubě</div><div class="metric-value" style="color:var(--blue)">${fmtK(finalG)}</div></div>
-    <div class="metric"><div class="metric-label">100k → po TER</div><div class="metric-value" style="color:var(--green)">${fmtK(finalN)}</div></div>
-    <div class="metric"><div class="metric-label">100k → po prodeji</div><div class="metric-value" style="color:var(--green)">${fmtK(finalS)}</div></div>
-    <div class="metric"><div class="metric-label">Vliv poplatků</div><div class="metric-value" style="color:var(--red)">−${fmtK(finalG-finalS)}</div></div>
+    <div class="metric"><div class="metric-label">Vloženo</div><div class="metric-value">${fmtK(start)}</div><div class="metric-sub">v roce ${fromYear}</div></div>
+    <div class="metric"><div class="metric-label">Hodnota dnes</div><div class="metric-value" style="color:var(--green)">${fmtK(finalN)}</div><div class="metric-sub">po TER</div></div>
+    <div class="metric"><div class="metric-label">Čistý výnos</div><div class="metric-value" style="color:var(--green)">+${fmtK(gain)}</div><div class="metric-sub">+${(gain/start*100).toFixed(1)} %</div></div>
+    <div class="metric"><div class="metric-label">Po prodeji (−1%)</div><div class="metric-value" style="color:var(--amber)">${fmtK(finalS)}</div><div class="metric-sub">konverze CZK↔EUR</div></div>
   `;
 
-  const labels = sp500data.map(d => d.year.toString());
+  const labels = filtered.map(d => d.year.toString());
   const cd = chartDefaults();
   destroyChart('p2');
   charts['p2'] = new Chart(document.getElementById('p2-chart'), {
@@ -621,7 +652,7 @@ function p2init() {
       plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => c.dataset.label + ': ' + Math.round(c.parsed.y).toLocaleString('cs-CZ') + ' Kč' }}},
       scales: {
         x: { grid: { color: cd.grid }, ticks: { color: cd.text }},
-        y: { grid: { color: cd.grid }, ticks: { color: cd.text, callback: v => (v/1e3).toFixed(0)+'k' }}
+        y: { grid: { color: cd.grid }, ticks: { color: cd.text, callback: v => v>=1e6?(v/1e6).toFixed(2)+'M':(v/1e3).toFixed(0)+'k' }}
       }
     }
   });
@@ -728,7 +759,7 @@ function p3update() {
 
 // INIT
 p1update();
-p2init();
+p2update();
 p3update();
 </script>
 </body>
