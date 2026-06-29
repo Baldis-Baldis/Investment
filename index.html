@@ -325,12 +325,30 @@
       <div class="field-label">Roční náklady (Kč)</div>
       <input type="number" id="p1-costs" value="12000" min="0" step="1000" oninput="p1update()" placeholder="např. 12000">
     </div>
+
+    <div class="field">
+      <button id="p1-loan-btn" onclick="toggleLoan()" style="width:100%;padding:10px 14px;background:var(--bg3);border:1px dashed rgba(255,255,255,0.2);border-radius:var(--radius-sm);color:var(--text2);font-size:14px;font-family:var(--font);cursor:pointer;text-align:left;transition:all 0.2s">
+        💳 Financováno půjčkou? Klikni pro zadání úroku
+      </button>
+    </div>
+    <div id="p1-loan-section" style="display:none">
+      <div class="field">
+        <div class="field-label">Úroková sazba půjčky (% p.a.) <strong id="p1-rate-out">5,0 %</strong></div>
+        <input type="range" id="p1-rate" min="0.5" max="20" step="0.5" value="5" oninput="p1update()">
+      </div>
+      <div class="field">
+        <div class="field-label">Doba splácení (roky) <strong id="p1-loan-years-out">20 let</strong></div>
+        <input type="range" id="p1-loan-years" min="1" max="30" step="1" value="20" oninput="p1update()">
+      </div>
+      <div id="p1-loan-info" style="background:var(--amber-dim);border:1px solid rgba(246,169,59,0.3);border-radius:var(--radius-sm);padding:10px 12px;font-size:12px;color:var(--amber);margin-bottom:4px"></div>
+    </div>
+
     <div class="field">
       <div class="field-label">Horizont <strong id="p1-years-out">10 let</strong></div>
       <input type="range" id="p1-years" min="1" max="30" step="1" value="10" oninput="p1update()">
     </div>
     <div class="field">
-      <div class="field-label">S&P 500 výnos p.a. <strong id="p1-sp-out">10,0 %</strong></div>
+      <div class="field-label">Investiční výnos p.a. (např. S&P 500) <strong id="p1-sp-out">10,0 %</strong></div>
       <input type="range" id="p1-sp" min="1" max="20" step="0.5" value="10" oninput="p1update()">
     </div>
   </div>
@@ -433,7 +451,7 @@
       <input type="range" id="p3-y" min="5" max="30" step="1" value="10" oninput="p3update()">
     </div>
     <div class="field">
-      <div class="field-label">Výnos S&P 500 <strong id="p3-r-out">10,0 %</strong></div>
+      <div class="field-label">Investiční výnos (např. S&P 500) <strong id="p3-r-out">10,0 %</strong></div>
       <input type="range" id="p3-r" min="1" max="20" step="0.5" value="10" oninput="p3update()">
     </div>
   </div>
@@ -492,38 +510,77 @@ function showPage(id, btn) {
 }
 
 // ─── PAGE 1: NÁVRATNOST ──────────────────────────────────
+let loanActive = false;
+
+function toggleLoan() {
+  loanActive = !loanActive;
+  const sec = document.getElementById('p1-loan-section');
+  const btn = document.getElementById('p1-loan-btn');
+  sec.style.display = loanActive ? 'block' : 'none';
+  btn.style.borderColor = loanActive ? 'var(--amber)' : 'rgba(255,255,255,0.2)';
+  btn.style.color = loanActive ? 'var(--amber)' : 'var(--text2)';
+  btn.textContent = loanActive ? '💳 Půjčka aktivní — klikni pro skrytí' : '💳 Financováno půjčkou? Klikni pro zadání úroku';
+  p1update();
+}
+
+function calcMonthlyPayment(principal, annualRate, years) {
+  const r = annualRate / 100 / 12;
+  const n = years * 12;
+  if (r === 0) return principal / n;
+  return principal * r * Math.pow(1+r, n) / (Math.pow(1+r, n) - 1);
+}
+
 function p1update() {
-  const inv     = +document.getElementById('p1-inv').value;
-  const monthly = +document.getElementById('p1-monthly').value;
-  const costs   = +document.getElementById('p1-costs').value;
-  const years   = +document.getElementById('p1-years').value;
-  const sp      = +document.getElementById('p1-sp').value;
+  const inv        = +document.getElementById('p1-inv').value || 0;
+  const monthly    = +document.getElementById('p1-monthly').value || 0;
+  const costs      = +document.getElementById('p1-costs').value || 0;
+  const years      = +document.getElementById('p1-years').value || 10;
+  const sp         = +document.getElementById('p1-sp').value || 10;
 
-  document.getElementById('p1-years-out').textContent   = years + ' let';
-  document.getElementById('p1-sp-out').textContent      = sp.toFixed(1).replace('.', ',') + ' %';
+  document.getElementById('p1-years-out').textContent = years + ' let';
+  document.getElementById('p1-sp-out').textContent    = sp.toFixed(1).replace('.', ',') + ' %';
 
-  const gross    = monthly * 12;
-  const net      = gross - costs;
-  const grossY   = inv > 0 ? (gross / inv) * 100 : 0;
-  const netY     = inv > 0 ? (net / inv) * 100 : 0;
-  const payback  = net > 0 ? (inv / net) : Infinity;
-  const diff     = netY - sp;
+  // Loan
+  let loanAnnual = 0;
+  let totalInterest = 0;
+  if (loanActive && inv > 0) {
+    const lRate  = +document.getElementById('p1-rate').value || 5;
+    const lYears = +document.getElementById('p1-loan-years').value || 20;
+    document.getElementById('p1-rate-out').textContent       = lRate.toFixed(1).replace('.', ',') + ' %';
+    document.getElementById('p1-loan-years-out').textContent = lYears + ' let';
+    const monthlyPayment = calcMonthlyPayment(inv, lRate, lYears);
+    loanAnnual   = monthlyPayment * 12;
+    totalInterest = loanAnnual * lYears - inv;
+    document.getElementById('p1-loan-info').innerHTML =
+      `Měsíční splátka: <strong>${fmt(monthlyPayment)}</strong> &nbsp;·&nbsp; Roční splátky: <strong>${fmt(loanAnnual)}</strong><br>Celkově zaplacené úroky za ${lYears} let: <strong>${fmt(totalInterest)}</strong>`;
+  }
+
+  const gross   = monthly * 12;
+  const net     = gross - costs - loanAnnual;
+  const grossY  = inv > 0 ? (gross / inv) * 100 : 0;
+  const netY    = inv > 0 ? (net / inv) * 100 : 0;
+  const payback = net > 0 ? (inv / net) : Infinity;
+  const diff    = netY - sp;
 
   // yield table
+  const loanRow = loanActive ? `
+    <div class="ytrow"><span class="ytrow-label">Roční splátky půjčky</span><span class="ytrow-val" style="color:var(--amber)">− ${fmt(loanAnnual)}</span></div>` : '';
+
   document.getElementById('p1-ytable').innerHTML = `
     <div class="ytable">
       <div class="ytrow"><span class="ytrow-label">Hrubý roční příjem</span><span class="ytrow-val">${fmt(gross)}</span></div>
       <div class="ytrow"><span class="ytrow-label">Roční náklady</span><span class="ytrow-val" style="color:var(--red)">− ${fmt(costs)}</span></div>
+      ${loanRow}
       <div class="ytrow"><span class="ytrow-label">Čistý roční příjem</span><span class="ytrow-val"><span class="badge ${net>=0?'g':'r'}">${fmt(net)}</span></span></div>
       <div class="divider"></div>
       <div class="ytrow"><span class="ytrow-label">Hrubý výnos p.a.</span><span class="ytrow-val">${grossY.toFixed(2)} %</span></div>
       <div class="ytrow"><span class="ytrow-label">Čistý výnos (net yield)</span><span class="ytrow-val" style="color:var(--green)">${netY.toFixed(2)} %</span></div>
       <div class="ytrow"><span class="ytrow-label">Prostá návratnost</span><span class="ytrow-val">${isFinite(payback) ? payback.toFixed(1) + ' let' : '∞'}</span></div>
-      <div class="ytrow"><span class="ytrow-label">S&P 500 výnos p.a.</span><span class="ytrow-val" style="color:var(--blue)">${sp.toFixed(2)} %</span></div>
-      <div class="ytrow"><span class="ytrow-label">Rozdíl vs S&P 500</span><span class="ytrow-val"><span class="badge ${diff>=0?'g':'b'}">${diff>=0?'+':''}${diff.toFixed(2)} %</span></span></div>
+      <div class="ytrow"><span class="ytrow-label">Investiční výnos p.a.</span><span class="ytrow-val" style="color:var(--blue)">${sp.toFixed(2)} %</span></div>
+      <div class="ytrow"><span class="ytrow-label">Rozdíl vs investiční výnos</span><span class="ytrow-val"><span class="badge ${diff>=0?'g':'b'}">${diff>=0?'+':''}${diff.toFixed(2)} %</span></span></div>
     </div>`;
 
-  // timeline data
+  // timeline
   const labels = [], propData = [], sp500Data = [];
   let spV = inv, prV = inv;
   for (let y = 0; y <= years; y++) {
@@ -532,28 +589,29 @@ function p1update() {
     propData.push(Math.round(prV));
     if (y < years) { spV *= (1 + sp/100); prV += net; }
   }
-  const propF = propData[propData.length-1];
+  const propF  = propData[propData.length-1];
   const sp500F = sp500Data[sp500Data.length-1];
 
   document.getElementById('p1-metrics').innerHTML = `
     <div class="metric"><div class="metric-label">Čistý výnos p.a.</div><div class="metric-value" style="color:var(--green)">${netY.toFixed(2)} %</div><div class="metric-sub">net yield</div></div>
-    <div class="metric"><div class="metric-label">S&P 500 p.a.</div><div class="metric-value" style="color:var(--blue)">${sp.toFixed(2)} %</div><div class="metric-sub">nastavený výnos</div></div>
+    <div class="metric"><div class="metric-label">Investiční výnos p.a.</div><div class="metric-value" style="color:var(--blue)">${sp.toFixed(2)} %</div><div class="metric-sub">např. S&P 500</div></div>
     <div class="metric"><div class="metric-label">Pronájem / ${years}l</div><div class="metric-value" style="color:var(--green)">${fmtK(propF)}</div><div class="metric-sub">kumulativně</div></div>
-    <div class="metric"><div class="metric-label">S&P 500 / ${years}l</div><div class="metric-value" style="color:var(--blue)">${fmtK(sp500F)}</div><div class="metric-sub">složené úročení</div></div>
+    <div class="metric"><div class="metric-label">Investiční výnos / ${years}l</div><div class="metric-value" style="color:var(--blue)">${fmtK(sp500F)}</div><div class="metric-sub">složené úročení</div></div>
   `;
 
-  const winner = propF >= sp500F ? 'pronájem 🏠' : 'S&P 500 📈';
+  const winner = propF >= sp500F ? 'pronájem 🏠' : 'investiční fond 📈';
   document.getElementById('p1-summary').innerHTML = `
     Hrubý výnos: <strong>${grossY.toFixed(2)} %</strong> p.a. → čistý: <strong>${netY.toFixed(2)} %</strong> p.a.<br>
-    S&P 500: <strong>${sp.toFixed(2)} %</strong> p.a. → rozdíl <strong>${diff>=0?'+':''}${diff.toFixed(2)} %</strong><br>
+    ${loanActive ? `Roční splátky půjčky: <strong>${fmt(loanAnnual)}</strong><br>` : ''}
+    Investiční výnos: <strong>${sp.toFixed(2)} %</strong> p.a. → rozdíl <strong>${diff>=0?'+':''}${diff.toFixed(2)} %</strong><br>
     Návratnost: <strong>${isFinite(payback)?payback.toFixed(1)+' let':'∞'}</strong><br>
     Po ${years} letech výhodnější: <strong>${winner}</strong>
-    ${net < 0 ? '<br><span style="color:var(--red)">⚠ Záporný cash flow — náklady > příjmy</span>' : ''}
+    ${net < 0 ? '<br><span style="color:var(--red)">⚠ Záporný cash flow — výdaje převyšují příjmy</span>' : ''}
   `;
 
   document.getElementById('p1-legend').innerHTML = `
     <div class="legend-item"><div class="legend-dot" style="background:var(--green)"></div>Pronájem</div>
-    <div class="legend-item"><div class="legend-dot" style="background:var(--blue)"></div>S&P 500 (${sp} %)</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--blue)"></div>Investiční výnos (${sp} %)</div>
   `;
 
   const cd = chartDefaults();
@@ -562,7 +620,7 @@ function p1update() {
     type: 'line',
     data: { labels, datasets: [
       { label: 'Pronájem', data: propData, borderColor: '#2DD4A0', backgroundColor: 'rgba(45,212,160,0.08)', tension: 0.3, pointRadius: 3, borderWidth: 2 },
-      { label: `S&P 500 (${sp}%)`, data: sp500Data, borderColor: '#5B9CF6', backgroundColor: 'rgba(91,156,246,0.08)', tension: 0.3, pointRadius: 3, borderWidth: 2, borderDash: [5,3] }
+      { label: `Investiční výnos (${sp}%)`, data: sp500Data, borderColor: '#5B9CF6', backgroundColor: 'rgba(91,156,246,0.08)', tension: 0.3, pointRadius: 3, borderWidth: 2, borderDash: [5,3] }
     ]},
     options: {
       responsive: true, maintainAspectRatio: false,
