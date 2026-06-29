@@ -333,9 +333,40 @@
     </div>
     <div id="p1-loan-section" style="display:none">
       <div class="field">
-        <div class="field-label">Úroková sazba půjčky (% p.a.) <strong id="p1-rate-out">5,0 %</strong></div>
-        <input type="range" id="p1-rate" min="0.5" max="20" step="0.5" value="5" oninput="p1update()">
+        <div class="field-label" style="margin-bottom:8px">Typ úvěru</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          <button id="btn-annuity" onclick="setLoanType('annuity')" style="padding:10px 8px;border-radius:var(--radius-sm);font-size:13px;font-family:var(--font);cursor:pointer;border:1px solid var(--amber);background:var(--amber-dim);color:var(--amber);font-weight:600">
+            📅 Anuitní<br><span style="font-size:10px;font-weight:400;opacity:0.8">splácíš jistinu+úrok</span>
+          </button>
+          <button id="btn-bullet" onclick="setLoanType('bullet')" style="padding:10px 8px;border-radius:var(--radius-sm);font-size:13px;font-family:var(--font);cursor:pointer;border:1px solid var(--border);background:var(--bg3);color:var(--text2);font-weight:400">
+            💰 Bullet<br><span style="font-size:10px;opacity:0.8">jen úroky, jistina na konci</span>
+          </button>
+        </div>
       </div>
+
+      <div class="field">
+        <div class="field-label" style="margin-bottom:8px">Zadávat jako</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          <button id="btn-rate-mode" onclick="setRateMode('rate')" style="padding:8px;border-radius:var(--radius-sm);font-size:13px;font-family:var(--font);cursor:pointer;border:1px solid var(--green);background:var(--green-dim);color:var(--green);font-weight:600">
+            Úrok p.a.
+          </button>
+          <button id="btn-rpsn-mode" onclick="setRateMode('rpsn')" style="padding:8px;border-radius:var(--radius-sm);font-size:13px;font-family:var(--font);cursor:pointer;border:1px solid var(--border);background:var(--bg3);color:var(--text2);font-weight:400">
+            RPSN
+          </button>
+        </div>
+        <div style="font-size:10px;color:var(--text2);margin-top:6px">RPSN zahrnuje úrok + všechny poplatky (pojištění, zpracování atd.)</div>
+      </div>
+
+      <div class="field" id="p1-rate-field">
+        <div class="field-label">Úroková sazba (% p.a.) <strong id="p1-rate-out">5,0 %</strong></div>
+        <input type="range" id="p1-rate" min="0.1" max="20" step="0.1" value="5" oninput="p1update()">
+      </div>
+      <div class="field" id="p1-rpsn-field" style="display:none">
+        <div class="field-label">RPSN (% p.a.) <strong id="p1-rpsn-out">7,0 %</strong></div>
+        <input type="range" id="p1-rpsn" min="0.1" max="30" step="0.1" value="7" oninput="p1update()">
+        <div style="font-size:11px;color:var(--text2);margin-top:6px" id="p1-rpsn-diff"></div>
+      </div>
+
       <div class="field">
         <div class="field-label">Doba splácení (roky) <strong id="p1-loan-years-out">20 let</strong></div>
         <input type="range" id="p1-loan-years" min="1" max="30" step="1" value="20" oninput="p1update()">
@@ -349,7 +380,7 @@
     </div>
     <div class="field">
       <div class="field-label">Investiční výnos p.a. (např. S&P 500) <strong id="p1-sp-out">10,0 %</strong></div>
-      <input type="range" id="p1-sp" min="1" max="20" step="0.5" value="10" oninput="p1update()">
+      <input type="range" id="p1-sp" min="0.1" max="20" step="0.1" value="10" oninput="p1update()">
     </div>
   </div>
 
@@ -452,7 +483,7 @@
     </div>
     <div class="field">
       <div class="field-label">Investiční výnos (např. S&P 500) <strong id="p3-r-out">10,0 %</strong></div>
-      <input type="range" id="p3-r" min="1" max="20" step="0.5" value="10" oninput="p3update()">
+      <input type="range" id="p3-r" min="0.1" max="20" step="0.1" value="10" oninput="p3update()">
     </div>
   </div>
 
@@ -511,6 +542,8 @@ function showPage(id, btn) {
 
 // ─── PAGE 1: NÁVRATNOST ──────────────────────────────────
 let loanActive = false;
+let loanType = 'annuity';
+let rateMode = 'rate';
 
 function toggleLoan() {
   loanActive = !loanActive;
@@ -520,6 +553,38 @@ function toggleLoan() {
   btn.style.borderColor = loanActive ? 'var(--amber)' : 'rgba(255,255,255,0.2)';
   btn.style.color = loanActive ? 'var(--amber)' : 'var(--text2)';
   btn.textContent = loanActive ? '💳 Půjčka aktivní — klikni pro skrytí' : '💳 Financováno půjčkou? Klikni pro zadání úroku';
+  p1update();
+}
+
+function setLoanType(type) {
+  loanType = type;
+  const btnA = document.getElementById('btn-annuity');
+  const btnB = document.getElementById('btn-bullet');
+  if (type === 'annuity') {
+    btnA.style.border = '1px solid var(--amber)'; btnA.style.background = 'var(--amber-dim)'; btnA.style.color = 'var(--amber)'; btnA.style.fontWeight = '600';
+    btnB.style.border = '1px solid var(--border)'; btnB.style.background = 'var(--bg3)'; btnB.style.color = 'var(--text2)'; btnB.style.fontWeight = '400';
+  } else {
+    btnB.style.border = '1px solid var(--amber)'; btnB.style.background = 'var(--amber-dim)'; btnB.style.color = 'var(--amber)'; btnB.style.fontWeight = '600';
+    btnA.style.border = '1px solid var(--border)'; btnA.style.background = 'var(--bg3)'; btnA.style.color = 'var(--text2)'; btnA.style.fontWeight = '400';
+  }
+  p1update();
+}
+
+function setRateMode(mode) {
+  rateMode = mode;
+  const btnR = document.getElementById('btn-rate-mode');
+  const btnP = document.getElementById('btn-rpsn-mode');
+  const fldR = document.getElementById('p1-rate-field');
+  const fldP = document.getElementById('p1-rpsn-field');
+  if (mode === 'rate') {
+    btnR.style.border = '1px solid var(--green)'; btnR.style.background = 'var(--green-dim)'; btnR.style.color = 'var(--green)'; btnR.style.fontWeight = '600';
+    btnP.style.border = '1px solid var(--border)'; btnP.style.background = 'var(--bg3)'; btnP.style.color = 'var(--text2)'; btnP.style.fontWeight = '400';
+    fldR.style.display = 'block'; fldP.style.display = 'none';
+  } else {
+    btnP.style.border = '1px solid var(--green)'; btnP.style.background = 'var(--green-dim)'; btnP.style.color = 'var(--green)'; btnP.style.fontWeight = '600';
+    btnR.style.border = '1px solid var(--border)'; btnR.style.background = 'var(--bg3)'; btnR.style.color = 'var(--text2)'; btnR.style.fontWeight = '400';
+    fldP.style.display = 'block'; fldR.style.display = 'none';
+  }
   p1update();
 }
 
@@ -543,16 +608,45 @@ function p1update() {
   // Loan
   let loanAnnual = 0;
   let totalInterest = 0;
+  let loanDesc = '';
   if (loanActive && inv > 0) {
-    const lRate  = +document.getElementById('p1-rate').value || 5;
     const lYears = +document.getElementById('p1-loan-years').value || 20;
-    document.getElementById('p1-rate-out').textContent       = lRate.toFixed(1).replace('.', ',') + ' %';
     document.getElementById('p1-loan-years-out').textContent = lYears + ' let';
-    const monthlyPayment = calcMonthlyPayment(inv, lRate, lYears);
-    loanAnnual   = monthlyPayment * 12;
-    totalInterest = loanAnnual * lYears - inv;
-    document.getElementById('p1-loan-info').innerHTML =
-      `Měsíční splátka: <strong>${fmt(monthlyPayment)}</strong> &nbsp;·&nbsp; Roční splátky: <strong>${fmt(loanAnnual)}</strong><br>Celkově zaplacené úroky za ${lYears} let: <strong>${fmt(totalInterest)}</strong>`;
+
+    let effectiveRate, rateLabel;
+    if (rateMode === 'rpsn') {
+      const rpsn = +document.getElementById('p1-rpsn').value || 7;
+      document.getElementById('p1-rpsn-out').textContent = rpsn.toFixed(1).replace('.', ',') + ' %';
+      effectiveRate = rpsn;
+      rateLabel = `RPSN ${rpsn.toFixed(1)} %`;
+      // Show difference hint vs base rate
+      const baseRate = +document.getElementById('p1-rate').value || 5;
+      const extra = rpsn - baseRate;
+      document.getElementById('p1-rpsn-diff').textContent =
+        extra > 0 ? `↑ o ${extra.toFixed(1)} % více než samotný úrok (${baseRate.toFixed(1)} %) — rozdíl tvoří poplatky` : '';
+    } else {
+      const lRate = +document.getElementById('p1-rate').value || 5;
+      document.getElementById('p1-rate-out').textContent = lRate.toFixed(1).replace('.', ',') + ' %';
+      effectiveRate = lRate;
+      rateLabel = `úrok ${lRate.toFixed(1)} %`;
+    }
+
+    if (loanType === 'annuity') {
+      const monthlyPayment = calcMonthlyPayment(inv, effectiveRate, lYears);
+      loanAnnual    = monthlyPayment * 12;
+      totalInterest = loanAnnual * lYears - inv;
+      loanDesc = `<strong>Anuitní úvěr</strong> (${rateLabel})<br>
+        Měsíční splátka: <strong>${fmt(monthlyPayment)}</strong> &nbsp;·&nbsp; Roční splátky: <strong>${fmt(loanAnnual)}</strong><br>
+        Celkem zaplaceno za ${lYears} let: <strong>${fmt(loanAnnual * lYears)}</strong> (z toho přeplatek: <strong>${fmt(totalInterest)}</strong>)`;
+    } else {
+      const yearlyInterest = inv * effectiveRate / 100;
+      loanAnnual    = yearlyInterest;
+      totalInterest = yearlyInterest * lYears;
+      loanDesc = `<strong>Bullet úvěr</strong> (${rateLabel}) — platíš pouze úroky<br>
+        Roční úrok: <strong>${fmt(yearlyInterest)}</strong><br>
+        Celkem úroky za ${lYears} let: <strong>${fmt(totalInterest)}</strong> + jistina <strong>${fmt(inv)}</strong> na konci`;
+    }
+    document.getElementById('p1-loan-info').innerHTML = loanDesc;
   }
 
   const gross   = monthly * 12;
