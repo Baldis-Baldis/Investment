@@ -650,72 +650,135 @@ function p1update() {
   }
 
   const gross   = monthly * 12;
-  const net     = gross - costs - loanAnnual;
-  const grossY  = inv > 0 ? (gross / inv) * 100 : 0;
-  const netY    = inv > 0 ? (net / inv) * 100 : 0;
-  const payback = net > 0 ? (inv / net) : Infinity;
-  const diff    = netY - sp;
+  const netBase = gross - costs; // bez půjčky
 
-  // yield table
+  // Loan params pro timeline
+  const lYears = loanActive ? (+document.getElementById('p1-loan-years').value || 20) : 0;
+
+  // yield table — ukazuje cash flow v 1. fázi (se splátkou) a 2. fázi (bez splátky)
+  const netDurLoan   = netBase - loanAnnual;
+  const netAfterLoan = netBase;
+  const grossY       = inv > 0 ? (gross / inv) * 100 : 0;
+  const netYbase     = inv > 0 ? (netBase / inv) * 100 : 0;         // výnos bez splátky
+  const netYdur      = inv > 0 ? (netDurLoan / inv) * 100 : 0;      // výnos během splácení
+  const diffBase     = netYbase - sp;
+  const diffDur      = netYdur - sp;
+  const payback      = netBase > 0 ? (inv / netBase) : Infinity;
+
   const loanRow = loanActive ? `
-    <div class="ytrow"><span class="ytrow-label">Roční splátky půjčky</span><span class="ytrow-val" style="color:var(--amber)">− ${fmt(loanAnnual)}</span></div>` : '';
+    <div class="ytrow"><span class="ytrow-label">Roční splátky půjčky</span><span class="ytrow-val" style="color:var(--amber)">− ${fmt(loanAnnual)}</span></div>
+    <div class="ytrow"><span class="ytrow-label">Čistý CF během splácení (${lYears} let)</span><span class="ytrow-val"><span class="badge ${netDurLoan>=0?'g':'r'}">${fmt(netDurLoan)}/rok</span></span></div>
+    <div class="ytrow"><span class="ytrow-label">Net yield během splácení</span><span class="ytrow-val" style="color:${netYdur>=0?'var(--green)':'var(--red)'}"><strong>${netYdur.toFixed(2)} %</strong></span></div>
+    <div class="ytrow"><span class="ytrow-label">Čistý CF po splacení</span><span class="ytrow-val"><span class="badge g">${fmt(netAfterLoan)}/rok</span></span></div>
+    <div class="ytrow"><span class="ytrow-label">Net yield po splacení</span><span class="ytrow-val" style="color:var(--green)"><strong>${netYbase.toFixed(2)} %</strong></span></div>` : '';
 
   document.getElementById('p1-ytable').innerHTML = `
     <div class="ytable">
       <div class="ytrow"><span class="ytrow-label">Hrubý roční příjem</span><span class="ytrow-val">${fmt(gross)}</span></div>
       <div class="ytrow"><span class="ytrow-label">Roční náklady</span><span class="ytrow-val" style="color:var(--red)">− ${fmt(costs)}</span></div>
       ${loanRow}
-      <div class="ytrow"><span class="ytrow-label">Čistý roční příjem</span><span class="ytrow-val"><span class="badge ${net>=0?'g':'r'}">${fmt(net)}</span></span></div>
+      ${!loanActive ? `
+        <div class="ytrow"><span class="ytrow-label">Čistý roční příjem</span><span class="ytrow-val"><span class="badge ${netBase>=0?'g':'r'}">${fmt(netBase)}</span></span></div>
+        <div class="ytrow"><span class="ytrow-label">Čistý výnos (net yield)</span><span class="ytrow-val" style="color:var(--green)"><strong>${netYbase.toFixed(2)} %</strong> p.a.</span></div>` : ''}
       <div class="divider"></div>
       <div class="ytrow"><span class="ytrow-label">Hrubý výnos p.a.</span><span class="ytrow-val">${grossY.toFixed(2)} %</span></div>
-      <div class="ytrow"><span class="ytrow-label">Čistý výnos (net yield)</span><span class="ytrow-val" style="color:var(--green)">${netY.toFixed(2)} %</span></div>
-      <div class="ytrow"><span class="ytrow-label">Prostá návratnost</span><span class="ytrow-val">${isFinite(payback) ? payback.toFixed(1) + ' let' : '∞'}</span></div>
       <div class="ytrow"><span class="ytrow-label">Investiční výnos p.a.</span><span class="ytrow-val" style="color:var(--blue)">${sp.toFixed(2)} %</span></div>
-      <div class="ytrow"><span class="ytrow-label">Rozdíl vs investiční výnos</span><span class="ytrow-val"><span class="badge ${diff>=0?'g':'b'}">${diff>=0?'+':''}${diff.toFixed(2)} %</span></span></div>
+      <div class="ytrow"><span class="ytrow-label">Rozdíl vs investiční výnos</span><span class="ytrow-val"><span class="badge ${(loanActive?diffDur:diffBase)>=0?'g':'b'}">${(loanActive?diffDur:diffBase)>=0?'+':''}${(loanActive?diffDur:diffBase).toFixed(2)} %</span></span></div>
     </div>`;
 
-  // timeline
+  // ── TIMELINE rok po roku ──────────────────────────────
   const labels = [], propData = [], sp500Data = [];
   let spV = inv, prV = inv;
+  let bulletDeducted = false;
+
   for (let y = 0; y <= years; y++) {
     labels.push(y === 0 ? 'Dnes' : y + 'r');
     sp500Data.push(Math.round(spV));
     propData.push(Math.round(prV));
-    if (y < years) { spV *= (1 + sp/100); prV += net; }
+    if (y < years) {
+      spV *= (1 + sp / 100);
+      // Bullet: odečti jistinu v posledním roce splácení
+      const isBulletEnd = loanActive && loanType === 'bullet' && y === lYears - 1 && !bulletDeducted;
+      const cashThisYear = loanActive && y < lYears
+        ? netBase - loanAnnual - (isBulletEnd ? inv : 0)
+        : netBase;
+      if (isBulletEnd) bulletDeducted = true;
+      prV += cashThisYear;
+    }
   }
-  const propF  = propData[propData.length-1];
-  const sp500F = sp500Data[sp500Data.length-1];
+  const propF  = propData[propData.length - 1];
+  const sp500F = sp500Data[sp500Data.length - 1];
+
+  // Zjisti kdy se pronájem dostane do plusu
+  let breakEvenYear = null;
+  for (let i = 1; i < propData.length; i++) {
+    if (propData[i-1] < inv && propData[i] >= inv) { breakEvenYear = i; break; }
+  }
+
+  // Celkový zisk/ztráta
+  const propGain  = propF - inv;
+  const sp500Gain = sp500F - inv;
 
   document.getElementById('p1-metrics').innerHTML = `
-    <div class="metric"><div class="metric-label">Čistý výnos p.a.</div><div class="metric-value" style="color:var(--green)">${netY.toFixed(2)} %</div><div class="metric-sub">net yield</div></div>
-    <div class="metric"><div class="metric-label">Investiční výnos p.a.</div><div class="metric-value" style="color:var(--blue)">${sp.toFixed(2)} %</div><div class="metric-sub">např. S&P 500</div></div>
-    <div class="metric"><div class="metric-label">Pronájem / ${years}l</div><div class="metric-value" style="color:var(--green)">${fmtK(propF)}</div><div class="metric-sub">kumulativně</div></div>
-    <div class="metric"><div class="metric-label">Investiční výnos / ${years}l</div><div class="metric-value" style="color:var(--blue)">${fmtK(sp500F)}</div><div class="metric-sub">složené úročení</div></div>
+    <div class="metric"><div class="metric-label">CF po splacení</div><div class="metric-value" style="color:var(--green)">${fmt(netAfterLoan)}<span style="font-size:11px">/rok</span></div><div class="metric-sub">bez splátky</div></div>
+    <div class="metric"><div class="metric-label">Investiční výnos</div><div class="metric-value" style="color:var(--blue)">${sp.toFixed(1)} %</div><div class="metric-sub">p.a. srovnání</div></div>
+    <div class="metric"><div class="metric-label">Pronájem / ${years}l</div><div class="metric-value" style="color:${propF>=inv?'var(--green)':'var(--red)'}">${fmtK(propF)}</div><div class="metric-sub">${propF>=inv?'✓ v zisku':'⚠ v záporu'}</div></div>
+    <div class="metric"><div class="metric-label">Investiční fond / ${years}l</div><div class="metric-value" style="color:var(--blue)">${fmtK(sp500F)}</div><div class="metric-sub">složené úročení</div></div>
   `;
 
   const winner = propF >= sp500F ? 'pronájem 🏠' : 'investiční fond 📈';
+
   document.getElementById('p1-summary').innerHTML = `
-    Hrubý výnos: <strong>${grossY.toFixed(2)} %</strong> p.a. → čistý: <strong>${netY.toFixed(2)} %</strong> p.a.<br>
-    ${loanActive ? `Roční splátky půjčky: <strong>${fmt(loanAnnual)}</strong><br>` : ''}
-    Investiční výnos: <strong>${sp.toFixed(2)} %</strong> p.a. → rozdíl <strong>${diff>=0?'+':''}${diff.toFixed(2)} %</strong><br>
-    Návratnost: <strong>${isFinite(payback)?payback.toFixed(1)+' let':'∞'}</strong><br>
-    Po ${years} letech výhodnější: <strong>${winner}</strong>
-    ${net < 0 ? '<br><span style="color:var(--red)">⚠ Záporný cash flow — výdaje převyšují příjmy</span>' : ''}
+    <div style="background:${propGain>=0?'var(--green-dim)':'var(--red-dim)'};border:1px solid ${propGain>=0?'rgba(45,212,160,0.3)':'rgba(240,107,107,0.3)'};border-radius:var(--radius-sm);padding:14px 16px;margin-bottom:12px">
+      <div style="font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px">🏠 Pronájem — bilance po ${years} letech</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+        <div><div style="font-size:11px;color:var(--text2);margin-bottom:2px">Vstupní investice</div><div style="font-size:15px;font-weight:700">− ${fmtK(inv)}</div></div>
+        <div><div style="font-size:11px;color:var(--text2);margin-bottom:2px">Kumulativní CF</div><div style="font-size:15px;font-weight:700;color:var(--green)">+ ${fmtK(propF - inv + inv)}</div></div>
+        ${loanActive?`<div><div style="font-size:11px;color:var(--text2);margin-bottom:2px">Splátky celkem</div><div style="font-size:15px;font-weight:700;color:var(--amber)">− ${fmtK(loanAnnual*Math.min(lYears,years))}</div></div>`:''}
+      </div>
+      <div style="border-top:1px solid ${propGain>=0?'rgba(45,212,160,0.25)':'rgba(240,107,107,0.25)'};padding-top:10px;display:flex;justify-content:space-between;align-items:center">
+        <div style="font-size:14px;color:var(--text2);font-weight:500">ČISTÝ ZISK / ZTRÁTA</div>
+        <div style="font-size:26px;font-weight:800;letter-spacing:-1px;color:${propGain>=0?'var(--green)':'var(--red)'}">${propGain>=0?'+':''}${fmtK(propGain)}</div>
+      </div>
+    </div>
+    <div style="background:var(--blue-dim);border:1px solid rgba(91,156,246,0.3);border-radius:var(--radius-sm);padding:14px 16px;margin-bottom:12px">
+      <div style="font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px">📈 Investiční fond — bilance po ${years} letech</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+        <div><div style="font-size:11px;color:var(--text2);margin-bottom:2px">Vstupní investice</div><div style="font-size:15px;font-weight:700">− ${fmtK(inv)}</div></div>
+        <div><div style="font-size:11px;color:var(--text2);margin-bottom:2px">Hodnota portfolia</div><div style="font-size:15px;font-weight:700;color:var(--blue)">${fmtK(sp500F)}</div></div>
+      </div>
+      <div style="border-top:1px solid rgba(91,156,246,0.25);padding-top:10px;display:flex;justify-content:space-between;align-items:center">
+        <div style="font-size:14px;color:var(--text2);font-weight:500">ČISTÝ ZISK</div>
+        <div style="font-size:26px;font-weight:800;letter-spacing:-1px;color:var(--blue)">+${fmtK(sp500Gain)}</div>
+      </div>
+    </div>
+    <div style="font-size:13px;color:var(--text);line-height:1.8">
+      ${breakEvenYear ? `Návrat investice: <strong>${breakEvenYear}. rok</strong><br>` : ''}
+      ${loanActive ? `CF během splácení: <strong>${fmt(netDurLoan)}/rok</strong> → po splacení: <strong>${fmt(netAfterLoan)}/rok</strong><br>` : ''}
+      Po ${years} letech výhodnější: <strong>${winner}</strong>
+      ${propF < inv ? '<br><span style="color:var(--red)">⚠ Stále v záporu — zkus prodloužit horizont</span>' : ''}
+    </div>
   `;
 
   document.getElementById('p1-legend').innerHTML = `
-    <div class="legend-item"><div class="legend-dot" style="background:var(--green)"></div>Pronájem</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--green)"></div>Pronájem ${loanActive?'(fáze splácení → volný CF)':''}</div>
     <div class="legend-item"><div class="legend-dot" style="background:var(--blue)"></div>Investiční výnos (${sp} %)</div>
+    ${loanActive ? `<div class="legend-item"><div style="width:10px;height:2px;border-top:1px dashed var(--text2);display:inline-block"></div>&nbsp;Vložená částka</div>` : ''}
   `;
 
   const cd = chartDefaults();
   destroyChart('p1');
+  const datasets = [
+    { label: 'Pronájem', data: propData, borderColor: '#2DD4A0', backgroundColor: 'rgba(45,212,160,0.08)', tension: 0.3, pointRadius: 3, borderWidth: 2 },
+    { label: `Investiční výnos (${sp}%)`, data: sp500Data, borderColor: '#5B9CF6', backgroundColor: 'rgba(91,156,246,0.08)', tension: 0.3, pointRadius: 3, borderWidth: 2, borderDash: [5,3] },
+  ];
+  if (loanActive) {
+    // linka vložené částky jako reference
+    datasets.push({ label: 'Vložená částka', data: Array(labels.length).fill(inv), borderColor: 'rgba(255,255,255,0.2)', backgroundColor: 'transparent', borderDash: [3,3], pointRadius: 0, borderWidth: 1 });
+  }
   charts['p1'] = new Chart(document.getElementById('p1-chart'), {
     type: 'line',
-    data: { labels, datasets: [
-      { label: 'Pronájem', data: propData, borderColor: '#2DD4A0', backgroundColor: 'rgba(45,212,160,0.08)', tension: 0.3, pointRadius: 3, borderWidth: 2 },
-      { label: `Investiční výnos (${sp}%)`, data: sp500Data, borderColor: '#5B9CF6', backgroundColor: 'rgba(91,156,246,0.08)', tension: 0.3, pointRadius: 3, borderWidth: 2, borderDash: [5,3] }
-    ]},
+    data: { labels, datasets },
     options: {
       responsive: true, maintainAspectRatio: false,
       plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => c.dataset.label + ': ' + Math.round(c.parsed.y).toLocaleString('cs-CZ') + ' Kč' }}},
